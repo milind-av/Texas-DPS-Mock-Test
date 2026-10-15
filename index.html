@@ -169,16 +169,16 @@ main{display:grid;gap:14px;padding-block:14px 20px}
 .btn.go{width:100%;min-height:56px;font-size:1.1rem}
 .verdict p.timeup{color:var(--bad);font-weight:700}
 .verdict p.sync{color:var(--ink);font-weight:700}
-.namebox{display:grid;gap:8px;padding:14px;border-radius:14px;border:2px solid var(--line);background:var(--panel)}
-.namebox.need{border-color:var(--sel);background:var(--sel-bg)}
-.namebox.err{border-color:var(--bad);background:var(--bad-bg)}
-.nbhead{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.namebox label{font:800 1.12rem/1.2 var(--f-display)}
-.req{font:800 .68rem/1 var(--f-display);letter-spacing:.1em;text-transform:uppercase;padding:5px 8px;border-radius:6px;background:var(--ink);color:var(--bg)}
-.namebox.ok .req{background:var(--ok);color:var(--on-ok)}
+.sheetnote{margin:0;padding:10px 12px;border-radius:10px;background:var(--panel);font-size:.9rem;color:var(--ink)}
+.sheetbad{margin:0;padding:12px 14px;border-radius:10px;border:2px solid var(--bad);background:var(--bad-bg);color:var(--ink);font-size:.92rem}
+.namedlg{width:min(420px,calc(100vw - 32px));max-width:none;margin:auto;padding:22px;border:0;border-radius:16px;background:var(--surface);color:var(--ink);box-shadow:0 24px 70px rgb(0 0 0/.4)}
+.namedlg::backdrop{background:rgb(8 14 11/.6)}
+.namedlg form{display:grid;gap:12px}
+.namedlg h2{margin:0;font:800 1.35rem/1.2 var(--f-display)}
+.namedlg .hint{flex:none}
+.namedlg .acts .btn{flex:1 1 140px}
 .nameinput{width:100%;min-height:52px;padding:10px 14px;border:2px solid var(--ink);border-radius:10px;background:var(--surface);color:var(--ink);font:600 1.1rem/1.2 var(--f-body)}
-.namebox.err .nameinput{border-color:var(--bad)}
-.namebox .hint{flex:none}
+.nameinput[aria-invalid="true"]{border-color:var(--bad)}
 .nameerr{margin:0;color:var(--bad);font-weight:700}
 .modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
 .mode{display:grid;grid-template-rows:auto 1fr auto;gap:12px;min-width:0;border:1.5px solid var(--line);border-top-width:6px;border-radius:14px;padding:14px 16px 16px;background:var(--surface)}
@@ -2659,24 +2659,27 @@ async function sendScores(){
   }
   sending=false;showSync();
 }
-const nameOK=()=>(S.name||"").trim().length>=2;
-function nameBoxHTML(){
-  const ok=nameOK();
-  return `<div class="namebox ${ok?"ok":"need"}" id="nameBox"><div class="nbhead"><label for="playerName">Your name</label><span class="req">Required</span></div><input class="nameinput" id="playerName" type="text" maxlength="40" autocomplete="nickname" autocapitalize="words" enterkeyhint="done" placeholder="First name or nickname" value="${esc(S.name)}" required aria-required="true" aria-describedby="nameHelp nameErr"><p class="hint" id="nameHelp">Your score is saved to the shared score sheet under this name. Sharing a phone? Change it before you start.</p><p class="nameerr" id="nameErr" role="alert" hidden>Type your name (at least 2 letters) to start.</p></div>`;
+/* Score sheet on: every full test starts by asking who is taking it (pre-filled with the last name used on this device) */
+const SHEET_BAD=!SHEET&&String(window.SCORES_URL||"").trim()!=="";
+let pendingMode="practice";
+function nameDialogHTML(){
+  return `<dialog class="namedlg" id="nameDlg" aria-labelledby="nameDlgTitle"><form id="nameForm" novalidate><h2 id="nameDlgTitle">Who's taking this test?</h2><p class="hint">Your score is saved to the shared score sheet under this name.</p><label class="sr" for="dlgName">Your name</label><input class="nameinput" id="dlgName" type="text" maxlength="40" autocomplete="nickname" autocapitalize="words" enterkeyhint="go" placeholder="First name or nickname" aria-describedby="dlgErr"><p class="nameerr" id="dlgErr" role="alert" hidden>Type your name (at least 2 letters) to start.</p><div class="acts"><button class="btn primary" type="submit" id="dlgGo">Start</button><button class="btn ghost" type="button" data-act="name-cancel">Cancel</button></div></form></dialog>`;
 }
-function nameError(){
-  const box=document.getElementById("nameBox"),err=document.getElementById("nameErr"),inp=document.getElementById("playerName");
-  if(!box||!inp)return;
-  box.classList.add("err");box.classList.remove("ok","need");err.hidden=false;inp.setAttribute("aria-invalid","true");
-  inp.focus({preventScroll:true});box.scrollIntoView({block:"center"});
+function askName(mode){
+  const d=document.getElementById("nameDlg"),inp=document.getElementById("dlgName");
+  if(!d||!inp||typeof d.showModal!=="function"){const v=(window.prompt("Who's taking this test? Type your name.",S.name||"")||"").trim();if(v.length<2)return;S.name=v.slice(0,40);save();startTest("full",drawFull(),mode);return;}
+  pendingMode=mode;
+  document.getElementById("dlgGo").textContent=mode==="exam"?"Start exam":"Start practice";
+  document.getElementById("dlgErr").hidden=true;inp.removeAttribute("aria-invalid");
+  inp.value=S.name||"";
+  d.showModal();inp.focus();inp.select();
 }
-function nameInput(v){
-  S.name=v.slice(0,40);save();
-  const box=document.getElementById("nameBox"),err=document.getElementById("nameErr"),inp=document.getElementById("playerName");
-  if(!box)return;
-  const ok=nameOK();
-  box.classList.toggle("ok",ok);box.classList.toggle("need",!ok&&!box.classList.contains("err"));
-  if(ok){box.classList.remove("err");err.hidden=true;inp.removeAttribute("aria-invalid");}
+function submitName(){
+  const d=document.getElementById("nameDlg"),inp=document.getElementById("dlgName");
+  const v=inp.value.trim();
+  if(v.length<2){document.getElementById("dlgErr").hidden=false;inp.setAttribute("aria-invalid","true");inp.focus();return;}
+  S.name=v.slice(0,40);save();d.close();
+  startTest("full",drawFull(),pendingMode);
 }
 function syncText(t){
   if(!t||!t.sid)return "";
@@ -2762,7 +2765,8 @@ function viewStart(){
   let h=`<main class="wrap">`;
   if(ui.confirm) h+=noticeHTML(ui.confirm);
   h+=`<section class="card start" aria-labelledby="startTitle"><div class="starthead"><h2 id="startTitle">Pick how you want to take the test</h2><p class="lead">Every test has 30 questions from all 8 topics on the Texas knowledge test. Questions you haven't seen yet come first.</p></div>`;
-  if(SHEET) h+=nameBoxHTML();
+  if(SHEET) h+=`<p class="sheetnote">Scores from this page are saved to a shared score sheet. You\u2019ll be asked for your name when you start.</p>`+nameDialogHTML();
+  else if(SHEET_BAD) h+=`<p class="sheetbad" role="alert"><strong>Score sheet is off.</strong> The address on line 11 of index.html should start with https://script.google.com/macros/s/ and end in /exec.</p>`;
   h+=`<div class="plates" aria-hidden="true"><div class="mplate"><b>30</b><span>Questions</span></div><div class="mplate"><b>21</b><span>To pass</span></div><div class="mplate"><b>8</b><span>Topics</span></div></div>`;
   h+=`<div class="modes">`;
   h+=`<section class="mode exam" aria-labelledby="mExam"><div class="mtop"><h3 id="mExam">Exam</h3><span class="mclock">60:00</span></div><ul><li>60-minute countdown. When time runs out, it's scored automatically.</li><li>English only, no Gujarati or word help, like the real test.</li><li>Answers and explanations are shown when you finish.</li></ul><button class="btn dark go" type="button" data-act="start" data-m="exam" id="startExam">Start exam</button></section>`;
@@ -2961,7 +2965,8 @@ document.addEventListener("click",e=>{
     case "reset":requestReset();break;
     case "reset-yes":toStart();break;
     case "new":toStart();break;
-    case "start":if(SHEET&&!nameOK()){nameError();break;}startTest("full",drawFull(),el.dataset.m==="exam"?"exam":"practice");break;
+    case "start":{const m=el.dataset.m==="exam"?"exam":"practice";if(SHEET){askName(m);break;}startTest("full",drawFull(),m);break;}
+    case "name-cancel":{const d=document.getElementById("nameDlg");if(d&&d.open)d.close();break;}
     case "missed":{const ids=t.ids.filter((id,k)=>t.ans[k]!==0);startTest("missed",shuffle(ids),"practice");break;}
     case "filter":ui.filter=el.dataset.f==="all"?"all":"missed";render();break;
     case "clear":ui.confirm="clear";if(ui.view!=="test")ui.view="test";render();window.scrollTo(0,0);break;
@@ -2969,8 +2974,9 @@ document.addEventListener("click",e=>{
   }
 });
 app.addEventListener("toggle",e=>{if(e.target.id==="jumpBox")ui.jumpOpen=e.target.open;},true);
-app.addEventListener("input",e=>{if(e.target.id==="wordSearch"){ui.search=e.target.value;filterTerms();}else if(e.target.id==="playerName"){nameInput(e.target.value);}});
+app.addEventListener("input",e=>{if(e.target.id==="wordSearch"){ui.search=e.target.value;filterTerms();}else if(e.target.id==="dlgName"&&e.target.value.trim().length>=2){document.getElementById("dlgErr").hidden=true;e.target.removeAttribute("aria-invalid");}});
 window.addEventListener("online",()=>sendScores());
+app.addEventListener("submit",e=>{if(e.target.id==="nameForm"){e.preventDefault();submitName();}});
 document.addEventListener("keydown",e=>{
   const t=S.test;if(ui.view!=="test"||!t||t.done||e.metaKey||e.ctrlKey||e.altKey)return;
   if(e.target.closest&&e.target.closest("input,textarea,select,summary"))return;
