@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<script>
-/* ===== Score sheet settings =====
-   1. SCORES_URL: paste your Google Apps Script web app address between the quotes (it ends in /exec).
-   2. SCORES_KEY: the same secret word you typed in the Apps Script (SECRET).
-   Leave SCORES_URL empty to turn the score sheet off. */
-window.SCORES_URL = "";
-window.SCORES_KEY = "change-me";
+<!-- ===== Score sheet settings =====
+     SCORES_URL: your Google Apps Script web app address (it ends in /exec).
+     SCORES_KEY: the same secret word as SECRET in Code.gs.
+     Quotes are optional. Write SCORES_URL = off to turn the score sheet off. -->
+<script type="text/plain" id="score-settings">
+SCORES_URL = 
+SCORES_KEY = change-me
 </script>
 <style>body{margin:0}[hidden]{display:none!important}</style>
 <title>Texas DPS Mock Test</title>
@@ -169,14 +169,15 @@ main{display:grid;gap:14px;padding-block:14px 20px}
 .btn.go{width:100%;min-height:56px;font-size:1.1rem}
 .verdict p.timeup{color:var(--bad);font-weight:700}
 .verdict p.sync{color:var(--ink);font-weight:700}
+.ver{font:500 .78rem/1.3 var(--f-mono);color:var(--muted)}
 .sheetnote{margin:0;padding:10px 12px;border-radius:10px;background:var(--panel);font-size:.9rem;color:var(--ink)}
 .sheetbad{margin:0;padding:12px 14px;border-radius:10px;border:2px solid var(--bad);background:var(--bad-bg);color:var(--ink);font-size:.92rem}
-.namedlg{width:min(420px,calc(100vw - 32px));max-width:none;margin:auto;padding:22px;border:0;border-radius:16px;background:var(--surface);color:var(--ink);box-shadow:0 24px 70px rgb(0 0 0/.4)}
-.namedlg::backdrop{background:rgb(8 14 11/.6)}
-.namedlg form{display:grid;gap:12px}
-.namedlg h2{margin:0;font:800 1.35rem/1.2 var(--f-display)}
-.namedlg .hint{flex:none}
-.namedlg .acts .btn{flex:1 1 140px}
+.namecard{gap:14px}
+.namecard h2{margin:0;font:800 clamp(1.45rem,5vw,1.8rem)/1.15 var(--f-display)}
+.nmform{display:grid;gap:10px}
+.nmlabel{font:800 .78rem/1.2 var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.whoami{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 12px;padding:8px 12px;border-radius:10px;background:var(--panel)}
+.whoami b{font-weight:700}
 .nameinput{width:100%;min-height:52px;padding:10px 14px;border:2px solid var(--ink);border-radius:10px;background:var(--surface);color:var(--ink);font:600 1.1rem/1.2 var(--f-body)}
 .nameinput[aria-invalid="true"]{border-color:var(--bad)}
 .nameerr{margin:0;color:var(--bad);font-weight:700}
@@ -361,6 +362,7 @@ footer p{margin:0;max-width:62ch}
   <p>Each test draws 30 questions across every topic on the Texas Class C knowledge test, the same length and 70% passing score as the real one. New tests pick questions you haven't seen yet before repeating any.</p>
   <p>Questions are written from the Texas Driver Handbook and the Texas Transportation Code. Laws change, so study the current handbook from <a href="https://www.dps.texas.gov" target="_blank" rel="noopener">Texas DPS</a> too.</p>
   <div><button class="linkbtn" type="button" data-act="clear">Clear score history</button></div>
+  <p class="ver" id="verLine"></p>
 </footer>
 
 <script id="data">
@@ -2626,7 +2628,7 @@ GQ("It is safe to leave a young child alone in a parked car:","પાર્ક �
 const KEY="txdps-mock-v2";
 const LETTERS="ABCD";
 const app=document.getElementById("app");
-let S={gu:true,test:null,seen:{},history:[],name:"",outbox:[],dev:""};
+let S={gu:false,guSet:false,test:null,seen:{},history:[],name:"",outbox:[],dev:""};
 const EXAM_MS=60*60000;
 let ui={view:"test",confirm:null,filter:"missed",jumpOpen:false,search:""};
 
@@ -2634,52 +2636,67 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",
 function shuffle(a){const r=a.slice();for(let i=r.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[r[i],r[j]]=[r[j],r[i]];}return r;}
 const need=n=>Math.ceil(n*7/10);
 
-function load(){try{const raw=localStorage.getItem(KEY);if(raw){const d=JSON.parse(raw);if(d&&typeof d==="object"){S.gu=d.gu!==false;S.test=d.test||null;S.seen=d.seen&&typeof d.seen==="object"?d.seen:{};S.history=Array.isArray(d.history)?d.history:[];S.name=typeof d.name==="string"?d.name.slice(0,40):"";S.outbox=Array.isArray(d.outbox)?d.outbox.slice(-50):[];S.dev=typeof d.dev==="string"?d.dev:"";}}}catch(e){}}
+function load(){try{const raw=localStorage.getItem(KEY);if(raw){const d=JSON.parse(raw);if(d&&typeof d==="object"){S.guSet=d.guSet===true;S.gu=S.guSet&&d.gu===true;S.test=d.test||null;S.seen=d.seen&&typeof d.seen==="object"?d.seen:{};S.history=Array.isArray(d.history)?d.history:[];S.name=typeof d.name==="string"?d.name.slice(0,40):"";S.outbox=Array.isArray(d.outbox)?d.outbox.slice(-50):[];S.dev=typeof d.dev==="string"?d.dev:"";}}}catch(e){}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 
 /* Optional score sheet: only on a self-hosted copy where window.SCORES_URL is set to a Google Apps Script web app.
    Each finished full test is queued, then sent; anything that fails stays queued and is retried on the next visit. */
-const SHEET=(()=>{const u=String(window.SCORES_URL||"").trim();return /^https:\/\/script\.google\.com\/(macros|a\/macros\/[\w.-]+)\/s\/[\w-]+\/exec$/.test(u)?u:"";})();
+/* Settings come from a plain-text block at the top of the hosted index.html, so a typo or curly quotes
+   from a phone keyboard can't break the page. Older copies that set window.SCORES_URL still work. */
+const APP_VERSION="1.0.2";
+const CFG=(()=>{
+  let url=window.SCORES_URL,key=window.SCORES_KEY;
+  const el=document.getElementById("score-settings");
+  if(el)el.textContent.split(/\r?\n/).forEach(line=>{
+    const m=line.match(/^\s*(?:window\.)?(SCORES_URL|SCORES_KEY)\s*[:=]\s*(.*?)\s*;?\s*$/i);
+    if(!m)return;
+    const v=m[2].replace(/^[\s"'`“”‘’«»]+|[\s"'`“”‘’«»]+$/g,"");
+    if(m[1].toUpperCase()==="SCORES_URL")url=v;else key=v;
+  });
+  url=String(url==null?"":url).trim().replace(/[?#].*$/,"").replace(/\/+$/,"");
+  const ok=/^https:\/\/script\.google\.com\/(macros|a\/macros\/[\w.-]+)\/s\/[\w-]+\/exec$/.test(url);
+  const state=!el&&!url?"none":/^off$/i.test(url)?"off":!url?"empty":ok?"on":"bad";
+  return {url:ok?url:"",key:String(key==null?"":key).trim(),state,raw:url,hosted:!!el};
+})();
+const SHEET=CFG.url;
 let sending=false,sendFailed=false;
 const rid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 function queueScore(t,score){
   if(!S.dev)S.dev=rid();
   const topics={};t.ids.forEach((id,k)=>{const c=BY_ID[id].c;topics[c]=topics[c]||[0,0];topics[c][1]++;if(t.ans[k]===0)topics[c][0]++;});
-  t.sid=rid();t.sname=(S.name||"").trim().slice(0,40);
-  S.outbox.push({id:t.sid,finished:new Date(t.endedAt).toISOString(),name:(S.name||"").trim().slice(0,40),mode:t.mode,score,total:t.ids.length,timeSec:Math.round(spentMs(t)/1000),timedOut:!!t.timeUp,topics,device:S.dev});
+  t.sid=rid();t.sname=(t.who||S.name||"").trim().slice(0,40);
+  S.outbox.push({id:t.sid,finished:new Date(t.endedAt).toISOString(),name:(t.who||S.name||"").trim().slice(0,40),mode:t.mode,score,total:t.ids.length,timeSec:Math.round(spentMs(t)/1000),timedOut:!!t.timeUp,topics,device:S.dev});
   S.outbox=S.outbox.slice(-50);
 }
 async function sendScores(){
   if(!SHEET||sending||!S.outbox.length)return;
   sending=true;sendFailed=false;showSync();
   for(const p of S.outbox.slice()){
-    try{await fetch(SHEET,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(Object.assign({key:String(window.SCORES_KEY||"")},p))});
+    try{await fetch(SHEET,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(Object.assign({key:CFG.key},p))});
       S.outbox=S.outbox.filter(x=>x.id!==p.id);save();}
     catch(e){sendFailed=true;break;}
   }
   sending=false;showSync();
 }
-/* Score sheet on: every full test starts by asking who is taking it (pre-filled with the last name used on this device) */
-const SHEET_BAD=!SHEET&&String(window.SCORES_URL||"").trim()!=="";
-let pendingMode="practice";
-function nameDialogHTML(){
-  return `<dialog class="namedlg" id="nameDlg" aria-labelledby="nameDlgTitle"><form id="nameForm" novalidate><h2 id="nameDlgTitle">Who's taking this test?</h2><p class="hint">Your score is saved to the shared score sheet under this name.</p><label class="sr" for="dlgName">Your name</label><input class="nameinput" id="dlgName" type="text" maxlength="40" autocomplete="nickname" autocapitalize="words" enterkeyhint="go" placeholder="First name or nickname" aria-describedby="dlgErr"><p class="nameerr" id="dlgErr" role="alert" hidden>Type your name (at least 2 letters) to start.</p><div class="acts"><button class="btn primary" type="submit" id="dlgGo">Start</button><button class="btn ghost" type="button" data-act="name-cancel">Cancel</button></div></form></dialog>`;
+/* Hosted copy (has the settings block): the first screen on every page load asks who is taking the test.
+   It does not depend on the score-sheet settings being right. The box is pre-filled with the last name used here. */
+const SHEET_BAD=CFG.state==="bad",SHEET_EMPTY=CFG.state==="empty";
+const ASK_NAME=CFG.hosted;
+let nameDone=false;
+function sheetNoteHTML(){
+  if(SHEET) return `<p class="sheetnote">Scores are saved to the shared score sheet under your name.</p>`;
+  if(SHEET_BAD) return `<p class="sheetbad" role="alert"><strong>Score sheet isn't connected.</strong> The SCORES_URL address at the top of index.html doesn't look right. It should start with https://script.google.com/macros/s/ and end in /exec.</p>`;
+  if(SHEET_EMPTY) return `<p class="sheetbad" role="alert"><strong>Score sheet isn't connected.</strong> Scores stay on this device only. To connect it, paste your web app address after SCORES_URL at the top of index.html.</p>`;
+  return "";
 }
-function askName(mode){
-  const d=document.getElementById("nameDlg"),inp=document.getElementById("dlgName");
-  if(!d||!inp||typeof d.showModal!=="function"){const v=(window.prompt("Who's taking this test? Type your name.",S.name||"")||"").trim();if(v.length<2)return;S.name=v.slice(0,40);save();startTest("full",drawFull(),mode);return;}
-  pendingMode=mode;
-  document.getElementById("dlgGo").textContent=mode==="exam"?"Start exam":"Start practice";
-  document.getElementById("dlgErr").hidden=true;inp.removeAttribute("aria-invalid");
-  inp.value=S.name||"";
-  d.showModal();inp.focus();inp.select();
+function viewName(){
+  return `<main class="wrap"><section class="card namecard" aria-labelledby="nmTitle"><h2 id="nmTitle">Who's taking the test?</h2><p class="lead">Type your name to begin. Sharing a phone? Type your own name over the one shown.</p><form id="nameForm" class="nmform" novalidate><label class="nmlabel" for="nmInput">Your name</label><input class="nameinput" id="nmInput" type="text" maxlength="40" autocomplete="nickname" autocapitalize="words" enterkeyhint="go" placeholder="First name or nickname" value="${esc(S.name)}" aria-describedby="nmErr"><p class="nameerr" id="nmErr" role="alert" hidden>Type your name (at least 2 letters) to continue.</p><button class="btn primary go" type="submit" id="nmGo">Continue</button></form>${sheetNoteHTML()}</section></main>`;
 }
 function submitName(){
-  const d=document.getElementById("nameDlg"),inp=document.getElementById("dlgName");
+  const inp=document.getElementById("nmInput");if(!inp)return;
   const v=inp.value.trim();
-  if(v.length<2){document.getElementById("dlgErr").hidden=false;inp.setAttribute("aria-invalid","true");inp.focus();return;}
-  S.name=v.slice(0,40);save();d.close();
-  startTest("full",drawFull(),pendingMode);
+  if(v.length<2){document.getElementById("nmErr").hidden=false;inp.setAttribute("aria-invalid","true");inp.focus();return;}
+  S.name=v.slice(0,40);save();nameDone=true;render();window.scrollTo(0,0);
 }
 function syncText(t){
   if(!t||!t.sid)return "";
@@ -2765,12 +2782,11 @@ function viewStart(){
   let h=`<main class="wrap">`;
   if(ui.confirm) h+=noticeHTML(ui.confirm);
   h+=`<section class="card start" aria-labelledby="startTitle"><div class="starthead"><h2 id="startTitle">Pick how you want to take the test</h2><p class="lead">Every test has 30 questions from all 8 topics on the Texas knowledge test. Questions you haven't seen yet come first.</p></div>`;
-  if(SHEET) h+=`<p class="sheetnote">Scores from this page are saved to a shared score sheet. You\u2019ll be asked for your name when you start.</p>`+nameDialogHTML();
-  else if(SHEET_BAD) h+=`<p class="sheetbad" role="alert"><strong>Score sheet is off.</strong> The address on line 11 of index.html should start with https://script.google.com/macros/s/ and end in /exec.</p>`;
+  if(ASK_NAME) h+=`<div class="whoami"><span>Taking the test as <b>${esc(S.name)}</b></span><button class="linkbtn" type="button" data-act="change-name">Not you? Change name</button></div>`+sheetNoteHTML();
   h+=`<div class="plates" aria-hidden="true"><div class="mplate"><b>30</b><span>Questions</span></div><div class="mplate"><b>21</b><span>To pass</span></div><div class="mplate"><b>8</b><span>Topics</span></div></div>`;
   h+=`<div class="modes">`;
   h+=`<section class="mode exam" aria-labelledby="mExam"><div class="mtop"><h3 id="mExam">Exam</h3><span class="mclock">60:00</span></div><ul><li>60-minute countdown. When time runs out, it's scored automatically.</li><li>English only, no Gujarati or word help, like the real test.</li><li>Answers and explanations are shown when you finish.</li></ul><button class="btn dark go" type="button" data-act="start" data-m="exam" id="startExam">Start exam</button></section>`;
-  h+=`<section class="mode prac" aria-labelledby="mPrac"><div class="mtop"><h3 id="mPrac">Practice</h3><span class="mclock">No limit</span></div><ul><li>Every question and answer choice also in <span lang="gu">ગુજરાતી</span>, with the explanation.</li><li>See the right answer, why, and a memory trick after each question.</li><li>No time limit, but the clock counts up so you can see your pace.</li></ul><button class="btn primary go" type="button" data-act="start" data-m="practice" id="startPrac">Start practice</button></section>`;
+  h+=`<section class="mode prac" aria-labelledby="mPrac"><div class="mtop"><h3 id="mPrac">Practice</h3><span class="mclock">No limit</span></div><ul><li>Turn on <span lang="gu">ગુજરાતી</span> to see every question, answer choice and explanation in Gujarati too.</li><li>See the right answer, why, and a memory trick after each question.</li><li>No time limit, but the clock counts up so you can see your pace.</li></ul><button class="btn primary go" type="button" data-act="start" data-m="practice" id="startPrac">Start practice</button></section>`;
   h+=`</div></section>`;
   h+=histHTML();
   return h+`</main>`;
@@ -2893,6 +2909,12 @@ function filterTerms(){
 }
 
 function render(){
+  if(ASK_NAME&&!nameDone){
+    app.innerHTML=viewName();
+    const inp=document.getElementById("nmInput");
+    if(inp){try{inp.focus({preventScroll:true});}catch(e){inp.focus();}inp.select();}
+    return;
+  }
   if(examLocked()&&ui.view!=="test"){ui.view="test";try{if(location.hash)history.replaceState(null,"",location.pathname+location.search);}catch(e){}}
   const t=S.test;let h=tabs();
   if(ui.view==="tricks") h+=viewTricks();
@@ -2954,7 +2976,7 @@ document.addEventListener("click",e=>{
     case "next":go(1);break;
     case "prev":go(-1);break;
     case "jump":ui.jumpOpen=false;ui.confirm=null;t.i=+el.dataset.i;save();render();toCard();break;
-    case "gu":S.gu=!S.gu;save();render();break;
+    case "gu":S.gu=!S.gu;S.guSet=true;save();render();break;
     case "view":setView(el.dataset.v);break;
     case "tjump":toTopic(el.dataset.t,true);break;
     case "tjump-top":{const n=document.getElementById("tknav");if(n)n.scrollIntoView({block:"center",behavior:window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"});break;}
@@ -2965,8 +2987,8 @@ document.addEventListener("click",e=>{
     case "reset":requestReset();break;
     case "reset-yes":toStart();break;
     case "new":toStart();break;
-    case "start":{const m=el.dataset.m==="exam"?"exam":"practice";if(SHEET){askName(m);break;}startTest("full",drawFull(),m);break;}
-    case "name-cancel":{const d=document.getElementById("nameDlg");if(d&&d.open)d.close();break;}
+    case "start":{const m=el.dataset.m==="exam"?"exam":"practice";startTest("full",drawFull(),m);if(ASK_NAME&&S.test){S.test.who=S.name;save();}break;}
+    case "change-name":nameDone=false;render();window.scrollTo(0,0);break;
     case "missed":{const ids=t.ids.filter((id,k)=>t.ans[k]!==0);startTest("missed",shuffle(ids),"practice");break;}
     case "filter":ui.filter=el.dataset.f==="all"?"all":"missed";render();break;
     case "clear":ui.confirm="clear";if(ui.view!=="test")ui.view="test";render();window.scrollTo(0,0);break;
@@ -2974,11 +2996,11 @@ document.addEventListener("click",e=>{
   }
 });
 app.addEventListener("toggle",e=>{if(e.target.id==="jumpBox")ui.jumpOpen=e.target.open;},true);
-app.addEventListener("input",e=>{if(e.target.id==="wordSearch"){ui.search=e.target.value;filterTerms();}else if(e.target.id==="dlgName"&&e.target.value.trim().length>=2){document.getElementById("dlgErr").hidden=true;e.target.removeAttribute("aria-invalid");}});
+app.addEventListener("input",e=>{if(e.target.id==="wordSearch"){ui.search=e.target.value;filterTerms();}else if(e.target.id==="nmInput"&&e.target.value.trim().length>=2){document.getElementById("nmErr").hidden=true;e.target.removeAttribute("aria-invalid");}});
 window.addEventListener("online",()=>sendScores());
 app.addEventListener("submit",e=>{if(e.target.id==="nameForm"){e.preventDefault();submitName();}});
 document.addEventListener("keydown",e=>{
-  const t=S.test;if(ui.view!=="test"||!t||t.done||e.metaKey||e.ctrlKey||e.altKey)return;
+  const t=S.test;if((ASK_NAME&&!nameDone)||ui.view!=="test"||!t||t.done||e.metaKey||e.ctrlKey||e.altKey)return;
   if(e.target.closest&&e.target.closest("input,textarea,select,summary"))return;
   const key=e.key.toLowerCase();
   let idx="abcd".indexOf(key);if(idx<0)idx="1234".indexOf(key);
@@ -3011,6 +3033,7 @@ window.addEventListener("pagehide",()=>{tickSpent();save();});
 
 /* Static bits: bank size and topic coverage table */
 document.getElementById("bankn").textContent=BANK.length;
+(function(){const el=document.getElementById("verLine");if(!el)return;const st={on:"score sheet connected",off:"score sheet turned off",empty:"score sheet not connected (no address)",bad:"score sheet not connected (address looks wrong)"}[CFG.state];el.textContent="Version "+APP_VERSION+(st?" \u00b7 "+st:"");})();
 (function(){
   let r=`<table><thead><tr><th>Topic</th><th class="n">Per test</th><th class="n">In bank</th></tr></thead><tbody>`;
   for(const [c,m] of Object.entries(CATS)){r+=`<tr><td>${esc(m.label)}</td><td class="n">${m.n}</td><td class="n">${BANK.filter(b=>b.c===c).length}</td></tr>`;}
@@ -3019,7 +3042,7 @@ document.getElementById("bankn").textContent=BANK.length;
 })();
 
 function start(data){
-  if(data&&data.S){S=data.S;if(typeof S.gu!=="boolean")S.gu=true;ui=Object.assign({view:"test",confirm:null,filter:"missed",jumpOpen:false,search:""},data.ui||{});}
+  if(data&&data.S){S=data.S;if(typeof S.gu!=="boolean")S.gu=false;ui=Object.assign({view:"test",confirm:null,filter:"missed",jumpOpen:false,search:""},data.ui||{});}
   else{load();const h=(location.hash||"").slice(1);if(h==="tricks"||h==="words")ui.view=h;}
   if(S.test&&!valid(S.test)){S.test=null;save();}
   if(S.test)normTest(S.test);
