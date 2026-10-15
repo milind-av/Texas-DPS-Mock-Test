@@ -2,7 +2,7 @@
 
 A free practice test for the Texas Class C driver's license knowledge test. It works on phones, needs no app or sign-in, and has optional Gujarati help.
 
-**Take the test:** https://YOUR-USERNAME.github.io/YOUR-REPO-NAME/
+**Take the test:** (https://milind-av.github.io/Texas-DPS-Mock-Test/)
 
 > ગુજરાતી બોલનારાઓ માટે: Practice મોડમાં ગુજરાતી સ્વિચ ચાલુ કરો, એટલે દરેક પ્રશ્ન, દરેક જવાબ અને સમજૂતી ગુજરાતીમાં પણ દેખાશે. Words ટૅબમાં અમેરિકાના ડ્રાઇવિંગ શબ્દો ગુજરાતીમાં સમજાવ્યા છે.
 
