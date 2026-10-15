@@ -8,8 +8,8 @@
    1. SCORES_URL: paste your Google Apps Script web app address between the quotes (it ends in /exec).
    2. SCORES_KEY: the same secret word you typed in the Apps Script (SECRET).
    Leave SCORES_URL empty to turn the score sheet off. */
-window.SCORES_URL = "https://script.google.com/macros/s/AKfycbxilMHl5aMKP0hClsdvnILUR7348_fvg03PhzPYYQBQJQIWI12j9GWBWP_A5kTqxi_J/exec";
-window.SCORES_KEY = "pmv-texas-dps";
+window.SCORES_URL = "";
+window.SCORES_KEY = "change-me";
 </script>
 <style>body{margin:0}[hidden]{display:none!important}</style>
 <title>Texas DPS Mock Test</title>
@@ -169,8 +169,17 @@ main{display:grid;gap:14px;padding-block:14px 20px}
 .btn.go{width:100%;min-height:56px;font-size:1.1rem}
 .verdict p.timeup{color:var(--bad);font-weight:700}
 .verdict p.sync{color:var(--ink);font-weight:700}
-.namebox{display:grid;gap:6px}
-.namebox label{font:800 .78rem/1.2 var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.namebox{display:grid;gap:8px;padding:14px;border-radius:14px;border:2px solid var(--line);background:var(--panel)}
+.namebox.need{border-color:var(--sel);background:var(--sel-bg)}
+.namebox.err{border-color:var(--bad);background:var(--bad-bg)}
+.nbhead{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.namebox label{font:800 1.12rem/1.2 var(--f-display)}
+.req{font:800 .68rem/1 var(--f-display);letter-spacing:.1em;text-transform:uppercase;padding:5px 8px;border-radius:6px;background:var(--ink);color:var(--bg)}
+.namebox.ok .req{background:var(--ok);color:var(--on-ok)}
+.nameinput{width:100%;min-height:52px;padding:10px 14px;border:2px solid var(--ink);border-radius:10px;background:var(--surface);color:var(--ink);font:600 1.1rem/1.2 var(--f-body)}
+.namebox.err .nameinput{border-color:var(--bad)}
+.namebox .hint{flex:none}
+.nameerr{margin:0;color:var(--bad);font-weight:700}
 .modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
 .mode{display:grid;grid-template-rows:auto 1fr auto;gap:12px;min-width:0;border:1.5px solid var(--line);border-top-width:6px;border-radius:14px;padding:14px 16px 16px;background:var(--surface)}
 .mode.exam{border-top-color:var(--ink)}
@@ -2636,7 +2645,7 @@ const rid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 function queueScore(t,score){
   if(!S.dev)S.dev=rid();
   const topics={};t.ids.forEach((id,k)=>{const c=BY_ID[id].c;topics[c]=topics[c]||[0,0];topics[c][1]++;if(t.ans[k]===0)topics[c][0]++;});
-  t.sid=rid();
+  t.sid=rid();t.sname=(S.name||"").trim().slice(0,40);
   S.outbox.push({id:t.sid,finished:new Date(t.endedAt).toISOString(),name:(S.name||"").trim().slice(0,40),mode:t.mode,score,total:t.ids.length,timeSec:Math.round(spentMs(t)/1000),timedOut:!!t.timeUp,topics,device:S.dev});
   S.outbox=S.outbox.slice(-50);
 }
@@ -2650,9 +2659,28 @@ async function sendScores(){
   }
   sending=false;showSync();
 }
+const nameOK=()=>(S.name||"").trim().length>=2;
+function nameBoxHTML(){
+  const ok=nameOK();
+  return `<div class="namebox ${ok?"ok":"need"}" id="nameBox"><div class="nbhead"><label for="playerName">Your name</label><span class="req">Required</span></div><input class="nameinput" id="playerName" type="text" maxlength="40" autocomplete="nickname" autocapitalize="words" enterkeyhint="done" placeholder="First name or nickname" value="${esc(S.name)}" required aria-required="true" aria-describedby="nameHelp nameErr"><p class="hint" id="nameHelp">Your score is saved to the shared score sheet under this name. Sharing a phone? Change it before you start.</p><p class="nameerr" id="nameErr" role="alert" hidden>Type your name (at least 2 letters) to start.</p></div>`;
+}
+function nameError(){
+  const box=document.getElementById("nameBox"),err=document.getElementById("nameErr"),inp=document.getElementById("playerName");
+  if(!box||!inp)return;
+  box.classList.add("err");box.classList.remove("ok","need");err.hidden=false;inp.setAttribute("aria-invalid","true");
+  inp.focus({preventScroll:true});box.scrollIntoView({block:"center"});
+}
+function nameInput(v){
+  S.name=v.slice(0,40);save();
+  const box=document.getElementById("nameBox"),err=document.getElementById("nameErr"),inp=document.getElementById("playerName");
+  if(!box)return;
+  const ok=nameOK();
+  box.classList.toggle("ok",ok);box.classList.toggle("need",!ok&&!box.classList.contains("err"));
+  if(ok){box.classList.remove("err");err.hidden=true;inp.removeAttribute("aria-invalid");}
+}
 function syncText(t){
   if(!t||!t.sid)return "";
-  if(!S.outbox.some(x=>x.id===t.sid))return "Saved to the score sheet.";
+  if(!S.outbox.some(x=>x.id===t.sid))return t.sname?`Saved to the score sheet as ${t.sname}.`:"Saved to the score sheet.";
   return sending||!sendFailed?"Sending your score to the score sheet…":"Couldn't reach the score sheet. It will try again the next time you open the test with internet.";
 }
 function showSync(){const el=document.querySelector("[data-sync]");if(el&&S.test)el.textContent=syncText(S.test);}
@@ -2734,8 +2762,8 @@ function viewStart(){
   let h=`<main class="wrap">`;
   if(ui.confirm) h+=noticeHTML(ui.confirm);
   h+=`<section class="card start" aria-labelledby="startTitle"><div class="starthead"><h2 id="startTitle">Pick how you want to take the test</h2><p class="lead">Every test has 30 questions from all 8 topics on the Texas knowledge test. Questions you haven't seen yet come first.</p></div>`;
+  if(SHEET) h+=nameBoxHTML();
   h+=`<div class="plates" aria-hidden="true"><div class="mplate"><b>30</b><span>Questions</span></div><div class="mplate"><b>21</b><span>To pass</span></div><div class="mplate"><b>8</b><span>Topics</span></div></div>`;
-  if(SHEET) h+=`<div class="namebox"><label for="playerName">Your name for the score sheet</label><input class="search" id="playerName" type="text" maxlength="40" autocomplete="nickname" placeholder="First name or nickname" value="${esc(S.name)}"><p class="hint">Each finished test is saved to a shared score sheet with this name.</p></div>`;
   h+=`<div class="modes">`;
   h+=`<section class="mode exam" aria-labelledby="mExam"><div class="mtop"><h3 id="mExam">Exam</h3><span class="mclock">60:00</span></div><ul><li>60-minute countdown. When time runs out, it's scored automatically.</li><li>English only, no Gujarati or word help, like the real test.</li><li>Answers and explanations are shown when you finish.</li></ul><button class="btn dark go" type="button" data-act="start" data-m="exam" id="startExam">Start exam</button></section>`;
   h+=`<section class="mode prac" aria-labelledby="mPrac"><div class="mtop"><h3 id="mPrac">Practice</h3><span class="mclock">No limit</span></div><ul><li>Every question and answer choice also in <span lang="gu">ગુજરાતી</span>, with the explanation.</li><li>See the right answer, why, and a memory trick after each question.</li><li>No time limit, but the clock counts up so you can see your pace.</li></ul><button class="btn primary go" type="button" data-act="start" data-m="practice" id="startPrac">Start practice</button></section>`;
@@ -2933,7 +2961,7 @@ document.addEventListener("click",e=>{
     case "reset":requestReset();break;
     case "reset-yes":toStart();break;
     case "new":toStart();break;
-    case "start":startTest("full",drawFull(),el.dataset.m==="exam"?"exam":"practice");break;
+    case "start":if(SHEET&&!nameOK()){nameError();break;}startTest("full",drawFull(),el.dataset.m==="exam"?"exam":"practice");break;
     case "missed":{const ids=t.ids.filter((id,k)=>t.ans[k]!==0);startTest("missed",shuffle(ids),"practice");break;}
     case "filter":ui.filter=el.dataset.f==="all"?"all":"missed";render();break;
     case "clear":ui.confirm="clear";if(ui.view!=="test")ui.view="test";render();window.scrollTo(0,0);break;
@@ -2941,7 +2969,7 @@ document.addEventListener("click",e=>{
   }
 });
 app.addEventListener("toggle",e=>{if(e.target.id==="jumpBox")ui.jumpOpen=e.target.open;},true);
-app.addEventListener("input",e=>{if(e.target.id==="wordSearch"){ui.search=e.target.value;filterTerms();}else if(e.target.id==="playerName"){S.name=e.target.value.slice(0,40);save();}});
+app.addEventListener("input",e=>{if(e.target.id==="wordSearch"){ui.search=e.target.value;filterTerms();}else if(e.target.id==="playerName"){nameInput(e.target.value);}});
 window.addEventListener("online",()=>sendScores());
 document.addEventListener("keydown",e=>{
   const t=S.test;if(ui.view!=="test"||!t||t.done||e.metaKey||e.ctrlKey||e.altKey)return;
